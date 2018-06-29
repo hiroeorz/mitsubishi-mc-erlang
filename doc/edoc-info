@@ -1,0 +1,4 @@
+%% encoding: UTF-8
+{application,mitsubishi_mc}.
+{modules,[mitsubishi_mc,mitsubishi_mc_app,mitsubishi_mc_driver,
+          mitsubishi_mc_port_manager,mitsubishi_mc_sup]}.

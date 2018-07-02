@@ -16,7 +16,7 @@ __Authors:__ HIROE Shin ([`shin@HIROE-no-MacBook-Pro.local`](mailto:shin@HIROE-n
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#command-3">command/3</a></td><td></td></tr><tr><td valign="top"><a href="#fmt-7">fmt/7</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#command-3">command/3</a></td><td>送信コマンド伝文を生成する。.</td></tr><tr><td valign="top"><a href="#fmt-7">fmt/7</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -32,6 +32,10 @@ command(SerialNo, Timeout, X3::tuple()) -&gt; binary()
 </code></pre>
 
 <ul class="definitions"><li><code>SerialNo = non_neg_integer()</code></li><li><code>Timeout = non_neg_integer()</code></li></ul>
+
+送信コマンド伝文を生成する。
+
+Timeoutはミリセカンドで、自局の場合は250ミリ秒 - 10000ミリ秒が望ましい.
 
 <a name="fmt-7"></a>
 

@@ -8,8 +8,12 @@
 %%%-------------------------------------------------------------------
 -module(mitsubishi_mc).
 
+%% Include
+-include("mitsubishi_mc.hrl").
+
 %% API
--export([start_port/2]).
+-export([start_port/2,
+	 read_dm_values/4]).
 
 %%%===================================================================
 %%% API
@@ -28,6 +32,19 @@ start_port(SrcIP, Port) ->
 	     {mitsubishi_mc_port, start_link, [SrcIP, Port]},
 	     permanent, 2000, worker, [mitsubishi_mc_port]},
     supervisor:start_child(mitsubishi_mc_sup, Child).
+
+%%--------------------------------------------------------------------
+%% @doc read values from DM area.
+%% @end
+%%--------------------------------------------------------------------
+-spec read_dm_values(DstIP, Port, StartAddress, Count) -> {ok, binary()} when
+      DstIP :: inet:ip_address(),
+      Port :: inet:port_number(),
+      StartAddress :: non_neg_integer(),
+      Count :: non_neg_integer().
+read_dm_values(DstIP, Port, StartAddress, Count) ->
+    Command = {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, StartAddress, 16#90, Count},
+    mitsubishi_mc_port:send_command(DstIP, Port, Command).
 
 %%%===================================================================
 %%% Internal functions

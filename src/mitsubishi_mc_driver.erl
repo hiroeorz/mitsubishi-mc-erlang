@@ -8,21 +8,21 @@
 %%%-------------------------------------------------------------------
 -module(mitsubishi_mc_driver).
 
+%% Include
+-include("mitsubishi_mc.hrl").
+
 %% API
--export([command/3]).
+-export([command/5,
+	 parse_response/1]).
 
 %% for debug
--export([fmt/3,
-	 fmt/7,
+-export([fmt/7,
 	 sub_header/1,
 	 access_route/4,
 	 watch_timer/1,
 	 request_data_length/2,
 	 device/3
 	]).
-
--define(CODE_READ_IO,             16#0401).
--define(SUB_CODE_READ_IO_REQUEST, 16#0000).
 
 %%%===================================================================
 %%% API
@@ -33,14 +33,20 @@
 %% Timeoutはミリセカンドで、自局の場合は250ミリ秒 - 10000ミリ秒が望ましい.
 %% @end
 %%--------------------------------------------------------------------
--spec command(SerialNo, Timeout, tuple()) -> binary() when
+-spec command(SerialNo, Timeout, NetworkNo, PcNo, tuple()) -> binary() when
       SerialNo :: non_neg_integer(),
-      Timeout :: non_neg_integer().
-command(SerialNo, Timeout, {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, No, Code, Count}) ->
+      Timeout :: non_neg_integer(),
+      NetworkNo :: non_neg_integer(),
+      PcNo :: non_neg_integer().
+command(SerialNo, Timeout, NetworkNo, PcNo, {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, No, Code, Count}) ->
     RequestBin = <<?CODE_READ_IO:16/little-unsigned-integer,
 		   ?SUB_CODE_READ_IO_REQUEST:16/little-unsigned-integer,
 		   (device(No, Code, Count))/binary >>,
-    fmt(SerialNo, Timeout, RequestBin).
+    fmt(SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin).
+
+
+parse_response(Bin) ->
+    Bin.
 
 %%%===================================================================
 %%% Internal functions
@@ -51,12 +57,12 @@ command(SerialNo, Timeout, {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, No, Code, 
 %% @doc 全てのデータを受け取って送信するバイナリ伝文を生成する。
 %% @end
 %%--------------------------------------------------------------------
--spec fmt(SerialNo, WatchTimerMSec, RequestBin) -> binary() when
-      SerialNo :: non_neg_integer(),
-      WatchTimerMSec :: non_neg_integer(),
-      RequestBin :: binary().
-fmt(SerialNo, WatchTimerMSec, RequestBin) ->
-    fmt(SerialNo, 0, 16#ff, 0, 0, WatchTimerMSec, RequestBin).
+%%-spec fmt(SerialNo, WatchTimerMSec, RequestBin) -> binary() when
+%%      SerialNo :: non_neg_integer(),
+%%      WatchTimerMSec :: non_neg_integer(),
+%%      RequestBin :: binary().
+%%fmt(SerialNo, WatchTimerMSec, RequestBin) ->
+%%    fmt(SerialNo, 0, 16#ff, 0, 0, WatchTimerMSec, RequestBin).
 
 -spec fmt(SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) -> binary() when
       SerialNo :: non_neg_integer(),
@@ -88,7 +94,8 @@ sub_header(SerialNo)
   when is_integer(SerialNo), 
        SerialNo > 16#0000,
        SerialNo < 16#FFFF ->
-    <<54:8, 00:8,  SerialNo:16/little-unsigned-integer, 00:8, 00:8>>.
+    %%<<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 00:8, 00:8>>.
+    <<16#50:8, 00:8>>.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -116,7 +123,6 @@ access_route(NetworkNo, PcNo, UnitIONo, UnitNo)
       PcNo:8/unsigned-integer,
       UnitIONo:16/little-unsigned-integer,
       UnitNo:8/unsigned-integer >>.
-    
 
 %%--------------------------------------------------------------------
 %% @private
@@ -158,7 +164,7 @@ device(No, Code, Count)
   when is_integer(No),
        is_integer(Code) ->
     <<No:24/little-unsigned-integer,
-      Code:8/unsigned-integer,
+      Code:16/unsigned-integer,
       Count:16/little-unsigned-integer >>.
 
 

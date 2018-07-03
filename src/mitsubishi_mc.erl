@@ -28,9 +28,16 @@
       SrcIP :: inet:ip_address(),
       Port :: inet:port_number().
 start_port(SrcIP, Port) ->
+    start_port(SrcIP, Port, '3E').
+
+-spec start_port(SrcIP, Port, FrameType) -> supervisor:startchild_ret() when
+      SrcIP :: inet:ip_address(),
+      Port :: inet:port_number(),
+      FrameType :: frame_type().
+start_port(SrcIP, Port, FrameType) ->
     _ = application:start(mitsubishi_mc),
     Child = {{mitsubishi_mc_port, Port}, 
-	     {mitsubishi_mc_port, start_link, [SrcIP, Port]},
+	     {mitsubishi_mc_port, start_link, [SrcIP, Port, FrameType]},
 	     permanent, 2000, worker, [mitsubishi_mc_port]},
     supervisor:start_child(mitsubishi_mc_sup, Child).
 

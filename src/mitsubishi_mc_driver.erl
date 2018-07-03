@@ -13,6 +13,7 @@
 
 %% API
 -export([command/5,
+	 get_process_identifier/1,
 	 parse_response/1]).
 
 %% for debug
@@ -44,6 +45,22 @@ command(SerialNo, Timeout, NetworkNo, PcNo, {?CODE_READ_IO, ?SUB_CODE_READ_IO_RE
 		   (device(No, Code, Count))/binary >>,
     fmt(SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin).
 
+%%--------------------------------------------------------------------
+%% @doc 受信伝文を受け取ってからシリアル番号を返す(4E専用)。
+%%
+%% 未テスト
+%% @end
+%%--------------------------------------------------------------------
+-spec get_process_identifier(binary()) -> non_neg_integer().
+get_process_identifier(Bin) ->
+    <<16#D4:8/unsigned-integer,
+      16#00:8/unsigned-integer,
+      SerialNo:16/little-unsigned-integer,
+      _:40/little-unsigned-integer,
+      Size:16/little-unsigned-integer,
+      _BodyBin:(Size)/binary>> = Bin,
+
+    SerialNo.
 
 parse_response(Bin) ->
     Bin.

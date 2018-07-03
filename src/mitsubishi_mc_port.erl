@@ -79,6 +79,7 @@ start_link(SrcIPAddress, Port, FrameType) ->
       Command :: tuple(),
       Data :: term().
 send_command(DstIP, Port, Command) ->
+    io:format("~p:~p  ~p~n", [DstIP, Port, Command]),
     case mitsubishi_mc_port_manager:get_pid(Port) of
 	{ok, Pid} ->
 	    case gen_server:call(Pid, {send_command, DstIP, Command}) of
@@ -196,17 +197,16 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({udp, _Sock, _Host, _Port, Bin}, State) ->
     io:format("recv info: ~p~n", [Bin]),
-    %%Identifier = mitsubishi_mc_driver:get_process_identifier(Bin),
+    Identifier = mitsubishi_mc_driver:get_process_identifier(Bin),
 
-    %%NewState = case get_process_pid(Identifier, State) of
-%%		   {ok, Pid} ->
-%%		       Pid ! {ok, Bin};
-%%		       %%delete_process_identifier(Identifier, State);
-%%		   error ->
-%%		       State
-%%	       end,
-%%    {noreply, NewState};
-    {noreply, State};
+    NewState = case get_process_pid(Identifier, State) of
+		   {ok, Pid} ->
+		       Pid ! {ok, Bin},
+		       delete_process_identifier(Identifier, State);
+		   error ->
+		       State
+	       end,
+    {noreply, NewState};
 
 handle_info(Info, State) ->
     io:format("unknown info: ~p~n", [Info]),
@@ -266,32 +266,32 @@ set_process_identifier(Pid, State) ->
 %% @doc プロセスと識別数値の組み合わせを削除したStateをかえす
 %% @end
 %%--------------------------------------------------------------------
-%%-spec delete_process_identifier(Identifier, #state{}) -> #state{} when
-%%      Identifier :: non_neg_integer().
-%%delete_process_identifier(Identifier, State) ->
-%%    Dict = State#state.process_tbl,
-%%    NewDict = dict:erase(Identifier, Dict),
-%%    State#state{process_tbl = NewDict}.
+-spec delete_process_identifier(Identifier, #state{}) -> #state{} when
+      Identifier :: non_neg_integer().
+delete_process_identifier(Identifier, State) ->
+    Dict = State#state.process_tbl,
+    NewDict = dict:erase(Identifier, Dict),
+    State#state{process_tbl = NewDict}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc 渡された識別数値にひもづけられたプロセス識別子をかえす
 %% @end
 %%--------------------------------------------------------------------
-%%-spec get_process_pid(Identifier, #state{}) -> pid() | error when
-%%      Identifier :: non_neg_integer().
-%%get_process_pid(Identifier, State) ->
-%%    Dict = State#state.process_tbl,
-%%    dict:find(Identifier, Dict).
+-spec get_process_pid(Identifier, #state{}) -> pid() | error when
+      Identifier :: non_neg_integer().
+get_process_pid(Identifier, State) ->
+    Dict = State#state.process_tbl,
+    dict:find(Identifier, Dict).
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc gen_serverからの非同期応答を待機し、受け取った値をかえす
 %% @end
 %%--------------------------------------------------------------------
-%%-spec wait_response() -> term() | 
-%%			 {error, timeout} | 
-%%			 {error, {non_neg_integer(), non_neg_integer()}}.
+-spec wait_response() -> term() | 
+			 {error, timeout} | 
+			 {error, {non_neg_integer(), non_neg_integer()}}.
 wait_response() ->
     receive
 	{ok, Bin} ->
@@ -341,6 +341,7 @@ to_tuple_address(SrcIPAddress) when is_list(SrcIPAddress) ->
 recv_packet(Sock) ->
     case gen_udp:recv(Sock, 0) of
 	{ok, {_Address, _Port, PacketBin}} ->
+	    io:format("recv: ~p~n", [PacketBin]),
 	    <<16#D0:8/unsigned-integer,
 	      16#00:8/unsigned-integer,
 	      _:40/little-unsigned-integer,

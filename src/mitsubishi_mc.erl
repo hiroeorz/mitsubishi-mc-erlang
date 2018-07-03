@@ -13,7 +13,8 @@
 
 %% API
 -export([start_port/2,
-	 read_dm_values/4]).
+	 read_dm_values/4,
+	 write_dm_values/4]).
 
 %%%===================================================================
 %%% API
@@ -37,13 +38,27 @@ start_port(SrcIP, Port) ->
 %% @doc read values from DM area.
 %% @end
 %%--------------------------------------------------------------------
--spec read_dm_values(DstIP, Port, StartAddress, Count) -> {ok, binary()} when
+-spec read_dm_values(DstIP, Port, StartAddress, Count) -> {ok, [non_neg_integer()]} |
+							  {error, non_neg_integer()} when
       DstIP :: inet:ip_address(),
       Port :: inet:port_number(),
       StartAddress :: non_neg_integer(),
       Count :: non_neg_integer().
 read_dm_values(DstIP, Port, StartAddress, Count) ->
     Command = [?CODE_READ_IO, ?SUB_CODE_READ_IO, StartAddress, 16#A8, Count],
+    mitsubishi_mc_port:send_command(DstIP, Port, Command).
+
+%%--------------------------------------------------------------------
+%% @doc write values to DM area.
+%% @end
+%%--------------------------------------------------------------------
+-spec write_dm_values(DstIP, Port, StartAddress, List) -> ok | {error, non_neg_integer()} when
+      DstIP :: inet:ip_address(),
+      Port :: inet:port_number(),
+      StartAddress :: non_neg_integer(),
+      List :: [non_neg_integer()].
+write_dm_values(DstIP, Port, StartAddress, List) ->
+    Command = [?CODE_WRITE_IO, ?SUB_CODE_WRITE_IO, StartAddress, 16#A8, length(List), List],
     mitsubishi_mc_port:send_command(DstIP, Port, Command).
 
 %%%===================================================================

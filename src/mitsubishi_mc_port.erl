@@ -84,6 +84,8 @@ send_command(DstIP, Port, [CommandCode, SubCode | _] = Command) ->
 	    case gen_server:call(Pid, {send_command, DstIP, Command}) of
 		{ok, async} ->
 		    wait_response(CommandCode, SubCode);
+		ok ->
+		    ok;
 		{ok, Result} ->
 		    {ok, Result};
 		{error, timeout} ->
@@ -150,7 +152,7 @@ handle_call({send_command, DstIP, Command}, From, State)
 handle_call({send_command, DstIP, Command}, {Pid, _Ref},
 	    State = #state{identifier = Identifier, port = Port, socket = Sock, frame_type = FrameType}) ->
     [CommandCode, SubCode | _] = Command,
-    NewState = set_process_identifier(Pid, State),
+    NewState = set_process_identifier(FrameType, Pid, State),
     Bin = mitsubishi_mc_driver:command(FrameType, Identifier, 1000, 0, 16#ff, Command),
 
     case gen_udp:send(Sock, DstIP, Port, Bin) of
@@ -197,6 +199,7 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+%% プロセス通信で受信したUDPソケットのデータを非同期で呼び出し元に返す(4E専用).
 handle_info({udp, _Sock, _Host, _Port, Bin}, State) ->
     %%io:format("recv info: ~p~n", [Bin]),
     Identifier = mitsubishi_mc_driver:get_process_identifier(Bin),
@@ -246,16 +249,19 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%--------------------------------------------------------------------
 %% @private
-%% @doc プロセスと識別数値の組み合わせを保存したStateをかえす
+%% @doc プロセスと識別数値の組み合わせを保存したStateをかえす(実際に識別値を保存するのは4Eのみ)
 %% @end
 %%--------------------------------------------------------------------
--spec set_process_identifier(pid(), #state{}) -> #state{}.
-set_process_identifier(Pid, State) ->
+-spec set_process_identifier(frame_type(), pid(), #state{}) -> #state{}.
+set_process_identifier('3E', _Pid, State) ->
+    State;
+
+set_process_identifier('4E', Pid, State) ->
     Dict = State#state.process_tbl,
     Identifier = State#state.identifier,
     NewDict = dict:store(Identifier, Pid, Dict),
     
-    NextIdentifier = if Identifier >= 16#FF ->
+    NextIdentifier = if Identifier >= 16#FFFF ->
 			    1;
 		       true ->
 			    Identifier + 1

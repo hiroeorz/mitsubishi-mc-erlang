@@ -43,7 +43,7 @@ start_port(SrcIP, Port) ->
       StartAddress :: non_neg_integer(),
       Count :: non_neg_integer().
 read_dm_values(DstIP, Port, StartAddress, Count) ->
-    Command = {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, StartAddress, 16#90, Count},
+    Command = [?CODE_READ_IO, ?SUB_CODE_READ_IO, StartAddress, 16#A8, Count],
     mitsubishi_mc_port:send_command(DstIP, Port, Command).
 
 %%%===================================================================

@@ -12,13 +12,13 @@
 -include("mitsubishi_mc.hrl").
 
 %% API
--export([command/5,
+-export([command/6,
 	 get_process_identifier/1,
-	 parse_response/1]).
+	 parse_response/3]).
 
 %% for debug
--export([fmt/7,
-	 sub_header/1,
+-export([fmt/8,
+	 sub_header/2,
 	 access_route/4,
 	 watch_timer/1,
 	 request_data_length/2,
@@ -34,16 +34,17 @@
 %% Timeoutはミリセカンドで、自局の場合は250ミリ秒 - 10000ミリ秒が望ましい.
 %% @end
 %%--------------------------------------------------------------------
--spec command(SerialNo, Timeout, NetworkNo, PcNo, tuple()) -> binary() when
+-spec command(FrameType, SerialNo, Timeout, NetworkNo, PcNo, list()) -> binary() when
+      FrameType :: frame_type(),
       SerialNo :: non_neg_integer(),
       Timeout :: non_neg_integer(),
       NetworkNo :: non_neg_integer(),
       PcNo :: non_neg_integer().
-command(SerialNo, Timeout, NetworkNo, PcNo, {?CODE_READ_IO, ?SUB_CODE_READ_IO_REQUEST, No, Code, Count}) ->
+command(FrameType, SerialNo, Timeout, NetworkNo, PcNo, [?CODE_READ_IO, ?SUB_CODE_READ_IO, No, Code, Count]) ->
     RequestBin = <<?CODE_READ_IO:16/little-unsigned-integer,
-		   ?SUB_CODE_READ_IO_REQUEST:16/little-unsigned-integer,
+		   ?SUB_CODE_READ_IO:16/little-unsigned-integer,
 		   (device(No, Code, Count))/binary >>,
-    fmt(SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin).
+    fmt(FrameType, SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin).
 
 %%--------------------------------------------------------------------
 %% @doc 受信伝文を受け取ってからシリアル番号を返す(4E専用)。
@@ -62,8 +63,60 @@ get_process_identifier(Bin) ->
 
     SerialNo.
 
-parse_response(Bin) ->
-    Bin.
+%%--------------------------------------------------------------------
+%% @doc 受信伝文バイナリをパースして返す.
+%%
+%% 未テスト
+%% @end
+%%--------------------------------------------------------------------
+-spec parse_response(Command, SubCommand, binary()) -> ok | {ok, term()} | {error, non_neg_integer()} when
+      Command :: non_neg_integer(),
+      SubCommand :: non_neg_integer().
+
+%% 3E
+parse_response(Command, SubCommand, <<16#D0:8/unsigned-integer, _/binary>> = Bin) ->
+    <<16#D0:8/unsigned-integer,
+      16#00:8/unsigned-integer,
+      _:40/little-unsigned-integer,
+      Size:16/little-unsigned-integer,
+      BodyBin:(Size)/binary>> = Bin,
+    parse_response_body(Command, SubCommand, BodyBin);
+
+%% 4E
+parse_response(Command, SubCommand, <<16#D4:8/unsigned-integer, _/binary>> = Bin) ->
+    <<16#D4:8/unsigned-integer,
+      16#00:8/unsigned-integer,
+      _SerialNo:16/little-unsigned-integer,
+      _:40/little-unsigned-integer,
+      Size:16/little-unsigned-integer,
+      BodyBin:(Size)/binary>> = Bin,
+    parse_response_body(Command, SubCommand, BodyBin).
+
+%% OK
+parse_response_body(_Command, _SubCommand, <<00:16/little-unsigned-integer>>) ->
+    ok;
+
+%% OK and Data returned
+parse_response_body(Command, SubCommand, <<00:16/little-unsigned-integer, DataBin/binary>>) ->
+    parse_body_detail(Command, SubCommand, DataBin);
+
+%% NG
+parse_response_body(_Command, _SubCommand, <<FinishCode:16/little-unsigned-integer, _/binary>>)
+  when FinishCode =/= 0 ->
+    {error, FinishCode}.
+
+parse_body_detail(?CODE_READ_IO, ?SUB_CODE_READ_IO, Bin) ->
+    ValList = binary_to_vallist(2, Bin),
+    {ok, ValList}.
+
+binary_to_vallist(UnitByte, Bin) ->
+    binary_to_vallist(UnitByte, Bin, []).
+
+binary_to_vallist(_UnitByte, <<>>, Result) ->
+    lists:reverse(Result);
+
+binary_to_vallist(2, <<V:16/little-unsigned-integer, Tail/binary>>, Result) ->
+    binary_to_vallist(2, Tail, [V | Result]).
 
 %%%===================================================================
 %%% Internal functions
@@ -74,14 +127,8 @@ parse_response(Bin) ->
 %% @doc 全てのデータを受け取って送信するバイナリ伝文を生成する。
 %% @end
 %%--------------------------------------------------------------------
-%%-spec fmt(SerialNo, WatchTimerMSec, RequestBin) -> binary() when
-%%      SerialNo :: non_neg_integer(),
-%%      WatchTimerMSec :: non_neg_integer(),
-%%      RequestBin :: binary().
-%%fmt(SerialNo, WatchTimerMSec, RequestBin) ->
-%%    fmt(SerialNo, 0, 16#ff, 0, 0, WatchTimerMSec, RequestBin).
-
--spec fmt(SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) -> binary() when
+-spec fmt(FrameType, SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) -> binary() when
+      FrameType :: frame_type(),
       SerialNo :: non_neg_integer(),
       NetworkNo :: non_neg_integer(),
       PcNo :: non_neg_integer(),
@@ -89,11 +136,11 @@ parse_response(Bin) ->
       UnitNo :: non_neg_integer(),
       WatchTimerMSec :: non_neg_integer(),
       RequestBin :: binary().
-fmt(SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) ->
+fmt(FrameType, SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) ->
     WatchTimerBin = watch_timer(WatchTimerMSec),
     Len = request_data_length(WatchTimerBin, RequestBin),
 
-    <<(sub_header(SerialNo))/binary,
+    <<(sub_header(FrameType, SerialNo))/binary,
       (access_route(NetworkNo, PcNo, UnitIONo, UnitNo))/binary,
       Len/binary,
       WatchTimerBin/binary,
@@ -104,15 +151,20 @@ fmt(SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, RequestBin) ->
 %% @doc サブヘッダ
 %% @end
 %%--------------------------------------------------------------------
--spec sub_header(SerialNo) -> binary() when
+-spec sub_header(FrameType, SerialNo) -> binary() when
+      FrameType :: frame_type(),
       SerialNo :: non_neg_integer().
-
-sub_header(SerialNo)
+sub_header('3E', SerialNo)
   when is_integer(SerialNo), 
        SerialNo > 16#0000,
        SerialNo < 16#FFFF ->
-    %%<<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 00:8, 00:8>>.
-    <<16#50:8, 00:8>>.
+    <<16#50:8, 00:8>>;
+
+sub_header('4E', SerialNo)
+  when is_integer(SerialNo), 
+       SerialNo > 16#0000,
+       SerialNo < 16#FFFF ->
+    <<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 00:8, 00:8>>.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -181,7 +233,7 @@ device(No, Code, Count)
   when is_integer(No),
        is_integer(Code) ->
     <<No:24/little-unsigned-integer,
-      Code:16/unsigned-integer,
+      Code:8/unsigned-integer,
       Count:16/little-unsigned-integer >>.
 
 

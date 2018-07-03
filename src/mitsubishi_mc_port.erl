@@ -76,19 +76,19 @@ start_link(SrcIPAddress, Port, FrameType) ->
 					    inet:posix() when
       DstIP :: inet:ip_address(),
       Port :: inet:port_number(),
-      Command :: tuple(),
+      Command :: list(),
       Data :: term().
-send_command(DstIP, Port, Command) ->
-    io:format("~p:~p  ~p~n", [DstIP, Port, Command]),
+send_command(DstIP, Port, [CommandCode, SubCode | _] = Command) ->
     case mitsubishi_mc_port_manager:get_pid(Port) of
 	{ok, Pid} ->
 	    case gen_server:call(Pid, {send_command, DstIP, Command}) of
 		{ok, async} ->
-		    wait_response();
+		    wait_response(CommandCode, SubCode);
 		{ok, Result} ->
 		    {ok, Result};
+		{error, timeout} ->
+		    error_logger:error_msg("plc network is down.");
 		{error, Reason} ->
-		    error_logger:error_msg("plc network is down."),
 		    {error, Reason}
 	    end;
 	{error, not_found} ->
@@ -111,17 +111,22 @@ init([Port, SrcIPAddress, FrameType]) when is_binary(SrcIPAddress);
     init([Port, to_tuple_address(SrcIPAddress), FrameType]);
 
 init([Port, SrcIPAddress, FrameType]) when is_tuple(SrcIPAddress) ->
-    Active = case FrameType of
-		 '3E' -> false;
-		 '4E' -> true
-	     end,
-
+    Active = socket_active(FrameType),
     {ok, Sock} = gen_udp:open(Port, [{ip, SrcIPAddress}, binary, {active, Active}]),
     ok = mitsubishi_mc_port_manager:set_pid(Port, self()),
     {ok, #state{port = Port,
 		ip_address = SrcIPAddress,
 		socket = Sock,
 		frame_type = FrameType}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc フレーム種別によってUDPソケットのアクティブタイプを返す.
+%% @end
+%%--------------------------------------------------------------------
+-spec socket_active(frame_type()) -> boolean().
+socket_active('3E') -> false;
+socket_active('4E') -> true.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -142,14 +147,11 @@ handle_call({send_command, DstIP, Command}, From, State)
        is_list(DstIP) ->
     handle_call({send_command, to_tuple_address(DstIP), Command}, From, State);
 
-handle_call({send_command, DstIP, Command}, {Pid, _Ref}, State) ->
-    Identifier = State#state.identifier,
-    Port = State#state.port,
-    Sock = State#state.socket,
-    FrameType = State#state.frame_type,
+handle_call({send_command, DstIP, Command}, {Pid, _Ref},
+	    State = #state{identifier = Identifier, port = Port, socket = Sock, frame_type = FrameType}) ->
+    [CommandCode, SubCode | _] = Command,
     NewState = set_process_identifier(Pid, State),
-    Bin = mitsubishi_mc_driver:command(Identifier, 1000, 0, 16#ff, Command),
-    io:format("send command: ~p~n", [Bin]),
+    Bin = mitsubishi_mc_driver:command(FrameType, Identifier, 1000, 0, 16#ff, Command),
 
     case gen_udp:send(Sock, DstIP, Port, Bin) of
 	ok ->
@@ -157,7 +159,7 @@ handle_call({send_command, DstIP, Command}, {Pid, _Ref}, State) ->
 		'4E' ->
 		    {reply, {ok, async}, NewState};
                 '3E' ->
-		    Result = recv_packet(Sock),
+		    Result = recv_packet(Sock, CommandCode, SubCode),
                     {reply, Result, NewState}
             end;
 	{error, Reason} ->
@@ -196,7 +198,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info({udp, _Sock, _Host, _Port, Bin}, State) ->
-    io:format("recv info: ~p~n", [Bin]),
+    %%io:format("recv info: ~p~n", [Bin]),
     Identifier = mitsubishi_mc_driver:get_process_identifier(Bin),
 
     NewState = case get_process_pid(Identifier, State) of
@@ -286,17 +288,18 @@ get_process_pid(Identifier, State) ->
 
 %%--------------------------------------------------------------------
 %% @private
-%% @doc gen_serverからの非同期応答を待機し、受け取った値をかえす
+%% @doc gen_serverからの非同期応答を待機し、受け取った値をかえす(4E専用)
 %% @end
 %%--------------------------------------------------------------------
--spec wait_response() -> term() | 
-			 {error, timeout} | 
-			 {error, {non_neg_integer(), non_neg_integer()}}.
-wait_response() ->
+-spec wait_response(non_neg_integer(), non_neg_integer()) -> ok |
+							     {ok, term()} |
+							     {error, timeout} | 
+							     {error, non_neg_integer()}.
+wait_response(CommandCode, SubCode) ->
     receive
 	{ok, Bin} ->
-	    case mitsubishi_mc_driver:parse_response(Bin) of
-		{error, {ErrCode}} -> {error, ErrCode};
+	    case mitsubishi_mc_driver:parse_response(CommandCode, SubCode, Bin) of
+		{error, ErrCode} -> {error, ErrCode};
 		ok                 -> ok;
 		{ok, Val}          -> {ok, Val}
 	    end;
@@ -304,6 +307,23 @@ wait_response() ->
 	    {error, Reason}
     after ?RESPONSE_TIMEOUT ->
 	    {error, timeout}
+    end.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc UDPソケットからデータを読み込んで返す(3E専用)。
+%% @end
+%%--------------------------------------------------------------------
+-spec recv_packet(Sock, CommandCode, SubCode) -> {ok, binary()} | {error, any()} when
+      Sock :: gen_udp:socket(),
+      CommandCode :: non_neg_integer(),
+      SubCode :: non_neg_integer().
+recv_packet(Sock, CommandCode, SubCode) ->
+    case gen_udp:recv(Sock, 0) of
+	{ok, {_Address, _Port, PacketBin}} ->
+	    mitsubishi_mc_driver:parse_response(CommandCode, SubCode, PacketBin);
+	{error, Reason1} ->
+	    {error, Reason1}
     end.
 
 %%--------------------------------------------------------------------
@@ -330,25 +350,3 @@ to_tuple_address(SrcIPAddress) when is_list(SrcIPAddress) ->
     StrList = re:split(SrcIPAddress,"[\.]",[{return, list}]),
     [A1, A2, A3, A4] = [list_to_integer(A) || A <- StrList],
     {A1, A2, A3, A4}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc UDPソケットからデータを読み込んで返す(フレームが3Eの場合に呼ばれる)。
-%% @end
-%%--------------------------------------------------------------------
--spec recv_packet(Sock) -> {ok, binary()} | {error, any()} when
-      Sock :: gen_udp:socket().
-recv_packet(Sock) ->
-    case gen_udp:recv(Sock, 0) of
-	{ok, {_Address, _Port, PacketBin}} ->
-	    io:format("recv: ~p~n", [PacketBin]),
-	    <<16#D0:8/unsigned-integer,
-	      16#00:8/unsigned-integer,
-	      _:40/little-unsigned-integer,
-	      Size:16/little-unsigned-integer,
-	      _BodyBin:(Size)/binary>> = PacketBin, %% check
-
-	    {ok, PacketBin};
-	{error, Reason1} ->
-	    {error, Reason1}
-    end.

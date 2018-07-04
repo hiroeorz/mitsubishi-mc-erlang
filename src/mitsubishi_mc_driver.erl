@@ -66,6 +66,7 @@ get_process_identifier(Bin) ->
     <<16#D4:8/unsigned-integer,
       16#00:8/unsigned-integer,
       SerialNo:16/little-unsigned-integer,
+      0:16/unsigned-integer,
       _:40/little-unsigned-integer,
       Size:16/little-unsigned-integer,
       _BodyBin:(Size)/binary>> = Bin,
@@ -96,6 +97,7 @@ parse_response(Command, SubCommand, <<16#D4:8/unsigned-integer, _/binary>> = Bin
     <<16#D4:8/unsigned-integer,
       16#00:8/unsigned-integer,
       _SerialNo:16/little-unsigned-integer,
+      0:16/unsigned-integer,
       _:40/little-unsigned-integer,
       Size:16/little-unsigned-integer,
       BodyBin:(Size)/binary>> = Bin,
@@ -211,7 +213,7 @@ sub_header('4E', SerialNo)
   when is_integer(SerialNo), 
        SerialNo > 16#0000,
        SerialNo < 16#FFFF ->
-    <<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 00:8, 00:8>>.
+    <<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 0:16/unsigned-integer>>.
 
 %%--------------------------------------------------------------------
 %% @private

@@ -13,6 +13,7 @@
 
 %% API
 -export([start_port/2,
+	 start_port/3,
 	 read_dm_values/4,
 	 write_dm_values/4,
 	 write_dm_same_value/5]).

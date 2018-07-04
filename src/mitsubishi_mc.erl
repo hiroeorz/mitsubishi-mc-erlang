@@ -14,7 +14,8 @@
 %% API
 -export([start_port/2,
 	 read_dm_values/4,
-	 write_dm_values/4]).
+	 write_dm_values/4,
+	 write_dm_same_value/5]).
 
 %%%===================================================================
 %%% API
@@ -42,7 +43,7 @@ start_port(SrcIP, Port, FrameType) ->
     supervisor:start_child(mitsubishi_mc_sup, Child).
 
 %%--------------------------------------------------------------------
-%% @doc read values from DM area.
+%% @doc read values from Register area.
 %% @end
 %%--------------------------------------------------------------------
 -spec read_dm_values(DstIP, Port, StartAddress, Count) -> {ok, [non_neg_integer()]} |
@@ -56,7 +57,7 @@ read_dm_values(DstIP, Port, StartAddress, Count) ->
     mitsubishi_mc_port:send_command(DstIP, Port, Command).
 
 %%--------------------------------------------------------------------
-%% @doc write values to DM area.
+%% @doc write values to Register area.
 %% @end
 %%--------------------------------------------------------------------
 -spec write_dm_values(DstIP, Port, StartAddress, List) -> ok | {error, non_neg_integer()} when
@@ -67,6 +68,20 @@ read_dm_values(DstIP, Port, StartAddress, Count) ->
 write_dm_values(DstIP, Port, StartAddress, List) ->
     Command = [?CODE_WRITE_IO, ?SUB_CODE_WRITE_IO, StartAddress, 16#A8, length(List), List],
     mitsubishi_mc_port:send_command(DstIP, Port, Command).
+
+%%--------------------------------------------------------------------
+%% @doc write same value to Register area.
+%% @end
+%%--------------------------------------------------------------------
+-spec write_dm_same_value(DstIP, Port, StartAddress, Count, Value) -> ok | {error, non_neg_integer} when
+      DstIP :: inet:ip_address(),
+      Port :: inet:port_number(),
+      StartAddress :: non_neg_integer(),
+      Count :: non_neg_integer(),
+      Value :: non_neg_integer().
+write_dm_same_value(DstIP, Port, StartAddress, Count, Value) ->
+    List = [Value || _ <- lists:seq(1, Count)],
+    write_dm_values(DstIP, Port, StartAddress, List).
 
 %%%===================================================================
 %%% Internal functions

@@ -153,7 +153,7 @@ handle_call({send_command, DstIP, Command}, {Pid, _Ref},
 	    State = #state{identifier = Identifier, port = Port, socket = Sock, frame_type = FrameType}) ->
     [CommandCode, SubCode | _] = Command,
     NewState = set_process_identifier(FrameType, Pid, State),
-    Bin = mitsubishi_mc_driver:command(FrameType, Identifier, 1000, 0, 16#ff, Command),
+    Bin = mitsubishi_mc_driver:command(FrameType, Identifier, 500, 0, 16#ff, Command),
 
     case gen_udp:send(Sock, DstIP, Port, Bin) of
 	ok ->

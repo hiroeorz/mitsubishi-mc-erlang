@@ -34,26 +34,27 @@
 %% Timeoutはミリセカンドで、自局の場合は250ミリ秒 - 10000ミリ秒が望ましい.
 %% @end
 %%--------------------------------------------------------------------
--spec command(FrameType, SerialNo, Timeout, NetworkNo, PcNo, list()) -> binary() when
+-spec command(FrameType, SerialNo, TimeoutMSec, NetworkNo, PcNo, list()) -> binary() when
       FrameType :: frame_type(),
       SerialNo :: non_neg_integer(),
-      Timeout :: non_neg_integer(),
+      TimeoutMSec :: non_neg_integer(),
       NetworkNo :: non_neg_integer(),
       PcNo :: non_neg_integer().
-command(FrameType, SerialNo, Timeout, NetworkNo, PcNo, [?CODE_READ_IO, ?SUB_CODE_READ_IO, No, Code, Count]) ->
+command(FrameType, SerialNo, TimeoutMSec, NetworkNo, PcNo, [?CODE_READ_IO, ?SUB_CODE_READ_IO, No, Code, Count]) ->
     RequestBin = <<?CODE_READ_IO:16/little-unsigned-integer,
 		   ?SUB_CODE_READ_IO:16/little-unsigned-integer,
 		   (device(No, Code, Count))/binary >>,
-    fmt(FrameType, SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin);
+    fmt(FrameType, SerialNo, NetworkNo, PcNo, 16#03FF, 0, TimeoutMSec, RequestBin);
 
-command(FrameType, SerialNo, Timeout, NetworkNo, PcNo,
+command(FrameType, SerialNo, TimeoutMSec, NetworkNo, PcNo,
 	[?CODE_WRITE_IO, ?SUB_CODE_WRITE_IO, No, Code, Count, ValList]) ->
     RequestBin = <<?CODE_WRITE_IO:16/little-unsigned-integer,
 		   ?SUB_CODE_WRITE_IO:16/little-unsigned-integer,
 		   (device(No, Code, Count))/binary,
 		   (vallist_to_binary(2, ValList))/binary >>,
 
-    fmt(FrameType, SerialNo, NetworkNo, PcNo, 16#03FF, 0, Timeout, RequestBin).
+    TimeoutVal = TimeoutMSec div 250,
+    fmt(FrameType, SerialNo, NetworkNo, PcNo, 16#03FF, 0, TimeoutVal, RequestBin).
 
 %%--------------------------------------------------------------------
 %% @doc 受信伝文を受け取ってからシリアル番号を返す(4E専用)。

@@ -325,7 +325,7 @@ wait_response(CommandCode, SubCode) ->
       CommandCode :: non_neg_integer(),
       SubCode :: non_neg_integer().
 recv_packet(Sock, CommandCode, SubCode) ->
-    case gen_udp:recv(Sock, 0) of
+    case gen_udp:recv(Sock, 0, ?RESPONSE_TIMEOUT) of
 	{ok, {_Address, _Port, PacketBin}} ->
 	    mitsubishi_mc_driver:parse_response(CommandCode, SubCode, PacketBin);
 	{error, Reason1} ->

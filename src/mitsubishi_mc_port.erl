@@ -38,7 +38,7 @@
 		frame_type = '3E'        :: frame_type(),
 		identifier = 1           :: non_neg_integer()}).
 
--define(RESPONSE_TIMEOUT, 3000).
+-define(RESPONSE_TIMEOUT, 1000).
 
 %%%===================================================================
 %%% API
@@ -89,7 +89,8 @@ send_command(DstIP, Port, [CommandCode, SubCode | _] = Command) ->
 		{ok, Result} ->
 		    {ok, Result};
 		{error, timeout} ->
-		    error_logger:error_msg("plc network is down.");
+		    error_logger:error_msg("plc network is down."),
+		    {error, timeout};
 		{error, Reason} ->
 		    {error, Reason}
 	    end;

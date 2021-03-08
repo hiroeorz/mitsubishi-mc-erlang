@@ -5,12 +5,12 @@ mitsubishi-mc-erlang is MESLEC command client written by Erlang.
 This application support communication to MITSUBISHI PLC from Erlang application.
 
 * MITSUBISHI ELECTRIC: <http://www.mitsubishielectric.co.jp/>
-* omron PLC: <http://www.mitsubishielectric.co.jp/fa/products/cnt/plc/index.html>
+* MITSUBISHI PLC: <http://www.mitsubishielectric.co.jp/fa/products/cnt/plc/index.html>
 
 Install
 ------------------------------------------------------------------
 
-    $ git clone http://192.168.4.166:8080/git/shin/mitsubishi-mc-erlang.git
+    $ git clone https://github.com/hiroeorz/mitsubishi-mc-erlang.git
     $ cd mitsubishi-mc-erlang
     $ make
 

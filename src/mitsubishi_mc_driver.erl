@@ -136,6 +136,10 @@ parse_response_body(_CommandCode, _SubCode, <<FinishCode:16/little-unsigned-inte
       Bin :: binary().
 parse_body_detail(?CODE_READ_IO, ?SUB_CODE_READ_IO, Bin) ->
     ValList = binary_to_vallist(2, Bin),
+    {ok, ValList};
+
+parse_body_detail(?CODE_WRITE_IO, ?SUB_CODE_WRITE_IO, Bin) ->
+    ValList = binary_to_vallist(2, Bin),
     {ok, ValList}.
 
 %%--------------------------------------------------------------------

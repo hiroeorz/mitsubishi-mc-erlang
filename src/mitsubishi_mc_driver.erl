@@ -210,14 +210,14 @@ fmt(FrameType, SerialNo, NetworkNo, PcNo, UnitIONo, UnitNo, WatchTimerMSec, Requ
       SerialNo :: non_neg_integer().
 sub_header('3E', SerialNo)
   when is_integer(SerialNo), 
-       SerialNo > 16#0000,
-       SerialNo < 16#FFFF ->
+       Serialno >= 16#0000,
+       SerialNo =< 16#FFFF ->
     <<16#50:8, 00:8>>;
 
 sub_header('4E', SerialNo)
   when is_integer(SerialNo), 
-       SerialNo > 16#0000,
-       SerialNo < 16#FFFF ->
+       Serialno >= 16#0000,
+       SerialNo =< 16#FFFF ->
     <<16#54:8, 00:8,  SerialNo:16/little-unsigned-integer, 0:16/unsigned-integer>>.
 
 %%--------------------------------------------------------------------
